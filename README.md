@@ -1,38 +1,146 @@
-NorthStar Retail - Cloud Data Engineering PipelineAn enterprise-grade data ingestion and transformation pipeline built on Microsoft Azure, designed to demonstrate the Separation of Storage and Compute paradigm for high-volume retail sales analytics.
-🏗️ Architecture & Tech StackThis project decouples storage and compute layers to ensure elastic scalability, cost-efficiency, and fault tolerance as transaction volumes increase:Storage Layer: Azure Data Lake Storage (ADLS) Gen2 (adlspoornimasales) for secure, scalable raw and processed Parquet data storage.Orchestration Layer: Azure Data Factory (ADF) to automate and schedule pipeline triggers daily at midnight.Compute & Transformation Layer: Azure Databricks (PySpark) and Azure Synapse Analytics to process large-scale datasets, filter transactions, and compute regional aggregations.
-🔄 Workflow OverviewIngestion: Raw transaction Parquet files (.parquet) are landed in the raw container (raw-data/) of ADLS Gen2.   Orchestration: An Azure Data Factory pipeline (SalesPipeline) triggers daily at midnight to initiate the workflow.   Transformation (Compute):Reads raw sales parquet data into a Spark dataframe.Filters out transactions under $100 (total_sales > 100).Aggregates total sales and transaction counts grouped by sales region.Persistence: The processed analytical results are written back to the processed container (processed-data/) in ADLS Gen2.  Repository StructurePlaintextnorthstar-retail-sales-pipeline/
-│
-├── scripts/
-│   ├── spark_transformation_pipeline.py  # PySpark script for Databricks transformation
-│   └── synapse_sales_aggregation.sql     # Synapse SQL query for data validation
-│
-├── data/
-│   ├── raw_sales_data.csv                # Sample raw sales dataset input
-│   └── aggregated_sales_summary.csv      # Processed regional sales output
-│
-└── README.md                             # Project documentation
-🚀 Getting Started & Execution1. Configure Storage PathsUpdate the storage account and container references in your Spark or ADF configurations:Pythonstorage_account_name = "adlspoornimasales"
-container_name = "salesdata"
-2. Run the Transformation ScriptExecute the PySpark script (spark_transformation_pipeline.py) inside your Azure Databricks cluster or Synapse Spark pool:Pythondf_processed = df_raw.filter(col("total_sales") > 100) \
-    .groupBy("region") \
+# NorthStar Retail – Cloud Data Engineering Pipeline
+
+## Project Overview
+
+The **NorthStar Retail Cloud Data Engineering Pipeline** is an Azure-based data engineering project designed to process and analyze large volumes of retail sales data.
+
+The project demonstrates the **Separation of Storage and Compute** paradigm by using Azure Data Lake Storage Gen2 for data storage, Azure Data Factory for workflow orchestration, and Azure Databricks with PySpark for data transformation.
+
+The pipeline automates daily data processing and generates regional sales summaries for business analysis.
+
+## Architecture & Technologies
+
+| Component | Technology | Purpose |
+|---|---|---|
+| Storage | Azure Data Lake Storage Gen2 | Stores raw and processed sales data |
+| Orchestration | Azure Data Factory | Automates and schedules pipeline execution |
+| Compute | Azure Databricks | Performs data transformations using PySpark |
+| Analytics | Azure Synapse Analytics | Validates and queries processed data |
+| Data Format | Parquet, CSV | Stores structured sales data |
+
+## Architecture Workflow
+
+1. **Data Ingestion:** Raw sales data in Parquet format is uploaded to the `raw-data` container in Azure Data Lake Storage Gen2.
+
+2. **Pipeline Orchestration:** Azure Data Factory manages the workflow through a pipeline named `SalesPipeline`.
+
+3. **Scheduling:** A scheduled trigger is configured to execute the pipeline daily at midnight.
+
+4. **Data Transformation:** Azure Databricks processes the raw sales data using PySpark.
+   - Reads Parquet files from the storage layer.
+   - Filters transactions where `total_sales > 100`.
+   - Groups transactions by region.
+   - Calculates total sales and transaction counts.
+   - Sorts the results by total sales in descending order.
+
+5. **Data Storage:** The transformed results are saved in the `processed-data` container in Parquet format.
+
+6. **Data Validation:** Azure Synapse Serverless SQL is used to query and validate the sales aggregation results.
+
+## Data Transformation Logic
+
+The following PySpark operations are performed:
+
+```python
+from pyspark.sql.functions import col, sum, count, desc
+
+df_processed = (
+    df_raw
+    .filter(col("total_sales") > 100)
+    .groupBy("region")
     .agg(
         sum("total_sales").alias("total_sales"),
         count("transaction_id").alias("transaction_count")
-    ) \
+    )
     .orderBy(desc("total_sales"))
-3. Validate Output via SQLYou can query the Parquet files directly from ADLS Gen2 using Azure Synapse Serverless SQL (synapse_sales_aggregation.sql):SQLSELECT 
+)
+```
+
+## SQL Validation
+
+The aggregated sales data can be validated using Azure Synapse Serverless SQL.
+
+```sql
+SELECT
     region,
     ROUND(SUM(total_sales), 2) AS total_sales,
     COUNT(transaction_id) AS transaction_count
-FROM 
+FROM
     OPENROWSET(
         BULK 'https://adlspoornimasales.dfs.core.windows.net/raw-data/*.parquet',
         FORMAT = 'PARQUET'
     ) AS [result]
-WHERE 
+WHERE
     total_sales > 100
-GROUP BY 
+GROUP BY
     region
-ORDER BY 
+ORDER BY
     total_sales DESC;
-Pipeline Outputs & VerificationADF Pipeline Monitor: Successfully running daily schedule with verified activity completions.   Raw Data Lake: Contains partitioned Parquet sales files (sales_transactions_2026_q1.parquet, etc.).   Processed Data Lake: Contains finalized columnar parquet summaries partitioned by region.   
+```
+
+## Repository Structure
+
+```text
+northstar-retail-sales-pipeline/
+│
+├── scripts/
+│   ├── spark_transformation_pipeline.py
+│   └── synapse_sales_aggregation.sql
+│
+├── data/
+│   ├── raw_sales_data.csv
+│   └── aggregated_sales_summary.csv
+│
+└── README.md
+```
+
+## Azure Configuration
+
+**Storage Account:** `adlspoornimasales`
+
+**Containers:**
+- `raw-data` – Stores original sales data.
+- `processed-data` – Stores transformed sales results.
+
+**Azure Data Factory Pipeline:** `SalesPipeline`
+
+**Trigger Schedule:** Daily at 12:00 AM (Midnight).
+
+## Key Features
+
+- Automated daily data pipeline execution.
+- Scalable cloud-based data storage.
+- Separation of storage and compute resources.
+- Large-scale data transformation using PySpark.
+- Regional sales aggregation and analysis.
+- SQL-based data validation.
+- Parquet-based data processing for efficient analytics.
+
+## Expected Outcome
+
+The pipeline produces a regional sales summary containing:
+
+- Region
+- Total Sales
+- Transaction Count
+
+Only transactions with sales values greater than $100 are included in the aggregation.
+
+## Learning Outcomes
+
+Through this project, I gained practical experience in:
+
+- Azure Data Lake Storage Gen2.
+- Azure Data Factory pipeline creation and scheduling.
+- Azure Databricks and PySpark transformations.
+- Azure Synapse Serverless SQL.
+- Cloud data engineering concepts.
+- Separation of Storage and Compute architecture.
+
+## Author
+
+**Poornima Arunachalam**
+
+B.Tech – Information Technology
+
+GitHub: [PoornimaArunachalam](https://github.com/PoornimaArunachalam)
